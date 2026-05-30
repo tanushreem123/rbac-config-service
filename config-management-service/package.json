@@ -1,0 +1,27 @@
+{
+  "name": "config-management-service",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A control-plane service for managing runtime configuration and feature toggles, designed with versioning, environment scoping, read-optimized access, and rollback safety.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanushreem123/config-management-service.git"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.1.2",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

@@ -1,0 +1,11 @@
+.DS_Store
+.vscode/
+*.log
+COMPLETION_BANNER.txt
+FILES_CREATED.txt
+TESTING_READY.md
+INSOMNIA_QUICK_START.md
+INSOMNIA_TESTING_GUIDE.md
+QUICK_REFERENCE.md
+**/node_modules/
+**/.env

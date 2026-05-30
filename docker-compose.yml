@@ -1,0 +1,72 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rbac_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-tanushreemiskin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Tanushree@123}
+      POSTGRES_DB: ${DB_NAME:-rbac_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config-management-service/db/schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql
+      - ./config-management-service/db/enforce_tenancy.sql:/docker-entrypoint-initdb.d/02-enforce_tenancy.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tanushreemiskin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - config-network
+
+  # Config Management API Backend
+  api:
+    build:
+      context: ./config-management-service
+      dockerfile: Dockerfile
+    container_name: config_api
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${DB_USER:-tanushreemiskin}:${DB_PASSWORD:-Tanushree@123}@postgres:5432/${DB_NAME:-rbac_db}
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-token-here}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-super-secret-admin-token}
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config-management-service/src:/app/src
+      - ./config-management-service/db:/app/db
+    networks:
+      - config-network
+    command: npm start
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend-config-management-service/config-admin-ui
+      dockerfile: Dockerfile
+    container_name: config_ui
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - config-network
+    volumes:
+      - ./frontend-config-management-service/config-admin-ui/app:/app/app
+      - ./frontend-config-management-service/config-admin-ui/components:/app/components
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  config-network:
+    driver: bridge
