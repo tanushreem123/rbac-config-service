@@ -4,8 +4,8 @@ services:
     image: postgres:15-alpine
     container_name: rbac_db
     environment:
-      POSTGRES_USER: ${DB_USER:-tanushreemiskin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-Tanushree@123}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-rbac_db}
     ports:
       - "5432:5432"
@@ -29,9 +29,9 @@ services:
     container_name: config_api
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      DATABASE_URL: postgresql://${DB_USER:-tanushreemiskin}:${DB_PASSWORD:-Tanushree@123}@postgres:5432/${DB_NAME:-rbac_db}
-      JWT_SECRET: ${JWT_SECRET:-your-jwt-token-here}
-      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-super-secret-admin-token}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-rbac_db}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
       PORT: 3001
     ports:
       - "3001:3001"
@@ -48,7 +48,7 @@ services:
   # Frontend (Next.js)
   frontend:
     build:
-      context: ./frontend-config-management-service/config-admin-ui
+      context: ./config-management-ui
       dockerfile: Dockerfile
     container_name: config_ui
     environment:
@@ -60,8 +60,8 @@ services:
     networks:
       - config-network
     volumes:
-      - ./frontend-config-management-service/config-admin-ui/app:/app/app
-      - ./frontend-config-management-service/config-admin-ui/components:/app/components
+      - ./config-management-ui/app:/app/app
+      - ./config-management-ui/components:/app/components
 
 volumes:
   postgres_data:
