@@ -9,3 +9,7 @@ INSOMNIA_TESTING_GUIDE.md
 QUICK_REFERENCE.md
 **/node_modules/
 **/.env
+# Environment files
+.env
+.env.*
+!.env.example
