@@ -1,96 +1,72 @@
-const BASE_URL = process.env.NEXT_PUBLIC_CONFIG_SERVICE_BASE_URL;
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_API_TOKEN;
+import { authFetch } from './auth';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export async function fetchConfigs(env) {
-  if (!BASE_URL) {
-    throw new Error("CONFIG_SERVICE_BASE_URL is not defined");
-  }
-
-  try {
-    const res = await fetch(`${BASE_URL}/configs?env=${env}`, {
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch configs: ${res.status} ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    
-    // Convert object to array format
-    const configsArray = Object.entries(data).map(([key, value]) => ({
-      key,
-      value,
-      version: 1, // Default version, adjust based on your backend
-    }));
-
-    return { configs: configsArray };
-  } catch (err) {
-    console.error('Fetch error:', err);
-    throw new Error(`Failed to fetch configs: ${err.message}`);
-  }
+  const res = await authFetch(`${BASE_URL}/configs?env=${env}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch configs');
+  return Array.isArray(data) ? data : [];
 }
 
-export async function createConfig(payload) {
-  if (!BASE_URL || !ADMIN_TOKEN) {
-    throw new Error("Missing required environment variables");
-  }
-
-  console.log('BASE_URL:', BASE_URL);
-  console.log('ADMIN_TOKEN:', ADMIN_TOKEN);
-  console.log('Creating config with payload:', JSON.stringify(payload, null, 2));
-
-  try {
-    const url = `${BASE_URL}/configs`;
-    console.log('Fetching from URL:', url);
-    
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-token": ADMIN_TOKEN,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    console.log('Response status:', res.status);
-    console.log('Response ok:', res.ok);
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error('Error response:', errorText);
-      throw new Error(`Failed to create config: ${res.status} ${res.statusText}`);
-    }
-
-    return res.json();
-  } catch (err) {
-    console.error('Create config error:', err);
-    throw err;
-  }
+export async function createConfig({ environment, key, value, type = 'string' }) {
+  const res = await authFetch(`${BASE_URL}/configs`, {
+    method: 'POST',
+    body: JSON.stringify({ environment, key, value, type }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save config');
+  return data;
 }
 
-export async function rollbackConfig(payload) {
-  if (!BASE_URL || !ADMIN_TOKEN) {
-    throw new Error("Missing required environment variables");
-  }
+export async function deleteConfig(key, environment) {
+  const res = await authFetch(`${BASE_URL}/configs/${encodeURIComponent(key)}?environment=${environment}`, {
+    method: 'DELETE',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete config');
+  return data;
+}
 
-  try {
-    const res = await fetch(`${BASE_URL}/configs/rollback`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-token": ADMIN_TOKEN,
-      },
-      body: JSON.stringify(payload),
-    });
+export async function fetchConfigVersions(key, env) {
+  const res = await authFetch(`${BASE_URL}/configs/${encodeURIComponent(key)}/versions?env=${env}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch versions');
+  return Array.isArray(data) ? data : [];
+}
 
-    if (!res.ok) {
-      throw new Error(`Failed to rollback config: ${res.status} ${res.statusText}`);
-    }
+export async function rollbackConfig({ key, environment, targetVersion }) {
+  const res = await authFetch(`${BASE_URL}/configs/rollback`, {
+    method: 'POST',
+    body: JSON.stringify({ key, environment, targetVersion }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to rollback');
+  return data;
+}
 
-    return res.json();
-  } catch (err) {
-    console.error('Rollback config error:', err);
-    throw err;
-  }
+// ── API Keys ─────────────────────────────────────────────────────────────────
+
+export async function listApiKeys() {
+  const res = await authFetch(`${BASE_URL}/api-keys`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch API keys');
+  return data.keys || [];
+}
+
+export async function createApiKey(name) {
+  const res = await authFetch(`${BASE_URL}/api-keys`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create API key');
+  return data; // { key: {...}, secret: "cms_..." }
+}
+
+export async function revokeApiKey(id) {
+  const res = await authFetch(`${BASE_URL}/api-keys/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to revoke API key');
+  return data;
 }

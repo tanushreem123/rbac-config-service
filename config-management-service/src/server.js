@@ -1,49 +1,37 @@
-import './config.js'; 
+import './config.js';
 import mongoose from "mongoose";
 import app from "./app.js";
 
+// Validate all required env vars before starting
+const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL', 'MONGO_URI', 'MAILTRAP_HOST', 'MAILTRAP_USER', 'MAILTRAP_PASS', 'ADMIN_API_TOKEN'];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 const PORT = process.env.PORT || 3001;
-const MONGO_URI = process.env.MONGO_URI;
 
-// Helper to mask credentials in a connection string for safe logging
-function maskDatabaseUrl(connStr) {
-  if (!connStr) return null;
-  try {
-    const url = new URL(connStr);
-    if (url.username || url.password) {
-      url.username = '***';
-      url.password = '***';
-    }
-    return url.toString();
-  } catch (e) {
-    // Non-standard format (pg connection strings may sometimes be accepted). Avoid printing raw value.
-    return '[DATABASE_URL is set — masked]';
-  }
-}
-
-// Diagnostic: report whether DATABASE_URL is configured (masked, no credentials)
-const rawDb = process.env.DATABASE_URL;
-if (rawDb) {
-  console.log('DATABASE_URL is set:', maskDatabaseUrl(rawDb));
-} else {
-  console.warn('DATABASE_URL not set in environment');
-}
-
-// Start server even if MongoDB connection fails
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Try to connect to MongoDB in background
-if (MONGO_URI) {
-  mongoose
-    .connect(MONGO_URI)
-    .then(() => {
-      console.log("Connected to MongoDB");
-    })
-    .catch((err) => {
-      console.warn("MongoDB connection failed (but server is still running)", err.message);
+// Graceful shutdown
+function shutdown(signal) {
+  console.log(`${signal} received, shutting down gracefully`);
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close().then(() => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
     });
-} else {
-  console.warn("MONGO_URI not set, skipping MongoDB connection");
+  });
 }
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.warn('MongoDB connection failed:', err.message));

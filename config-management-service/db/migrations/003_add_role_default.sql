@@ -1,0 +1,1 @@
+ALTER TABLE client_roles ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false;

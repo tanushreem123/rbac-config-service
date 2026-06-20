@@ -82,6 +82,14 @@ async function runTests() {
   console.log('Permission check result:', permission);
   console.log('');
 
+  // Test 7: Enforce DB Tenancy (client isolation)
+  console.log('Test 7: Enforce DB Tenancy');
+  const fakeClientId = '00000000-0000-0000-0000-000000000000';
+  await pool.query('SELECT set_config($1, $2, false)', ['app.current_client_id', fakeClientId]);
+  const tenancyResult = await pool.query('SELECT * FROM configs LIMIT 1');
+  console.log('Rows visible for fake client:', tenancyResult.rowCount);
+
+
   console.log('=== Tests Complete ===');
   await pool.end();
   process.exit(0);

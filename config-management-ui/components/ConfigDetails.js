@@ -1,5 +1,7 @@
+'use client';
 import React, { useState, useEffect } from 'react';
-import { rollbackConfig } from '@/lib/ConfigService';
+import { fetchConfigVersions, rollbackConfig } from '@/lib/ConfigService';
+
 const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
   const [rolling, setRolling] = useState(false);
   const [error, setError] = useState('');
@@ -7,35 +9,30 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
   const [loadingVersions, setLoadingVersions] = useState(true);
 
   useEffect(() => {
-    fetchVersionHistory();
+    loadVersionHistory();
   }, [config.key, env]);
 
-  const fetchVersionHistory = async () => {
+  const loadVersionHistory = async () => {
     try {
       setLoadingVersions(true);
-      const baseUrl = process.env.NEXT_PUBLIC_CONFIG_SERVICE_BASE_URL;
-      const response = await fetch(`${baseUrl}/configs/${config.key}/versions/?env=${env}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch version history');
-      }
-      const data = await response.json();
-      setVersions(Array.isArray(data) ? data : []);
+      setError('');
+      const data = await fetchConfigVersions(config.key, env);
+      setVersions(data);
     } catch (err) {
-      console.error('Error fetching versions:', err);
       setError(err.message);
     } finally {
       setLoadingVersions(false);
     }
   };
-  const handleRollback = async (version) => {
-    if (!window.confirm(`Rollback ${config.key} to version ${version}? This will change the active config.`)) {
-      return;
-    }
+
+  const handleRollback = async (targetVersion) => {
+    if (!window.confirm(`Rollback ${config.key} to version ${targetVersion}?`)) return;
 
     setRolling(true);
     setError('');
     try {
-      await rollbackConfig(env, config.key, version);
+      await rollbackConfig({ key: config.key, environment: env, targetVersion });
+      await loadVersionHistory();
       onRefresh();
     } catch (err) {
       setError(err.message);
@@ -57,12 +54,16 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
         <h3 style={{ marginTop: 0 }}>Config: {config.key}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', fontFamily: 'monospace' }}>
           <strong>Environment:</strong> <span>{env}</span>
-          <strong>Active Version:</strong> <span>v{config.version}</span>
-          <strong>Active Value:</strong> <span>{config.value}</span>
+          <strong>Active Version:</strong> <span>v{config.active_version}</span>
+          <strong>Active Value:</strong> <span>{JSON.stringify(config.value)}</span>
         </div>
       </div>
 
-      {error && <div style={{ color: '#d32f2f', marginBottom: '15px', padding: '10px', background: '#ffebee', borderRadius: '4px' }}>{error}</div>}
+      {error && (
+        <div style={{ color: '#c62828', marginBottom: '15px', padding: '10px', background: '#ffebee', borderRadius: '4px' }}>
+          {error}
+        </div>
+      )}
 
       <h4>Version History</h4>
       {loadingVersions ? (
@@ -79,9 +80,9 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
             </tr>
           </thead>
           <tbody>
-            {versions && Array.isArray(versions) && versions.length > 0 ? (
-              [...versions].reverse().map((v) => {
-                const isActive = v.version === config.version;
+            {versions.length > 0 ? (
+              versions.map((v) => {
+                const isActive = v.version === config.active_version;
                 return (
                   <tr key={v.version} style={{ borderBottom: '1px solid #eee', background: isActive ? '#e3f2fd' : 'white' }}>
                     <td style={{ padding: '12px' }}>
@@ -97,7 +98,7 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
                           disabled={rolling}
                           style={{ padding: '6px 12px', background: '#ff9800', color: 'white', border: 'none', borderRadius: '4px', cursor: rolling ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: rolling ? 0.6 : 1 }}
                         >
-                          Rollback
+                          {rolling ? 'Rolling back...' : 'Rollback'}
                         </button>
                       )}
                     </td>
@@ -106,7 +107,7 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
               })
             ) : (
               <tr>
-                <td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
+                <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
                   No version history available
                 </td>
               </tr>
@@ -117,4 +118,5 @@ const ConfigDetails = ({ env, config, onBack, onRefresh }) => {
     </div>
   );
 };
+
 export default ConfigDetails;

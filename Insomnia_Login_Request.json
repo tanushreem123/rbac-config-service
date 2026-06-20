@@ -1,0 +1,23 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-05-23T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2024.1.0",
+  "resources": [
+    {
+      "_id": "req_login",
+      "_type": "request",
+      "name": "Login (Get JWT)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/login",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"your-user-email\",\n  \"password\": \"your-user-password\"\n}"
+      },
+      "description": "Login to get JWT token. Use the returned token for Authorization in other requests."
+    }
+  ]
+}

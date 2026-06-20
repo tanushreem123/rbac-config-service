@@ -6,8 +6,6 @@ export function adminAuth(req, res, next) {
       error: "Admin token required",
     });
   }
-console.log("Provided token:", token);
-console.log("Expected token:", process.env.ADMIN_API_TOKEN);
   if (token !== process.env.ADMIN_API_TOKEN) {
     return res.status(403).json({
       error: "Invalid admin token",

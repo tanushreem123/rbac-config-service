@@ -1,5 +1,4 @@
-
-const ConfigList = ({ env, configs, onSelectConfig, onRefresh }) => {
+const ConfigList = ({ env, configs, onSelectConfig }) => {
   return (
     <div>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
@@ -7,14 +6,14 @@ const ConfigList = ({ env, configs, onSelectConfig, onRefresh }) => {
           <tr style={{ background: '#f9f9f9', borderBottom: '2px solid #ddd' }}>
             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Config Key</th>
             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Active Value</th>
-            <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Active Version</th>
+            <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Version</th>
             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {configs?.length === 0 ? (
+          {!configs || configs.length === 0 ? (
             <tr>
-              <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+              <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
                 No configs found for {env}
               </td>
             </tr>
@@ -22,8 +21,10 @@ const ConfigList = ({ env, configs, onSelectConfig, onRefresh }) => {
             configs.map((config) => (
               <tr key={config.key} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '12px', fontFamily: 'monospace' }}>{config.key}</td>
-                <td style={{ padding: '12px', fontFamily: 'monospace' }}>{config.value}</td>
-                <td style={{ padding: '12px' }}>v{config.version}</td>
+                <td style={{ padding: '12px', fontFamily: 'monospace', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {JSON.stringify(config.value)}
+                </td>
+                <td style={{ padding: '12px' }}>v{config.active_version}</td>
                 <td style={{ padding: '12px' }}>
                   <button
                     onClick={() => onSelectConfig(config)}
@@ -40,4 +41,5 @@ const ConfigList = ({ env, configs, onSelectConfig, onRefresh }) => {
     </div>
   );
 };
+
 export default ConfigList;

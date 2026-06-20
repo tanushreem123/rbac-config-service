@@ -1,119 +1,86 @@
 import { pool } from '../db.js';
 
-/* -------------------------------------------------------------
-   PUBLIC API
-------------------------------------------------------------- */
 export async function checkPermission(userId, contextId, resourceType, action) {
-
-  // ---- Input validation -------------------------------------------------
-  if (!resourceType || !action) return false;                     // empty parts
+  if (!resourceType || !action) return false;
   if (resourceType.includes(':') || action.includes(':')) return false;
-  if (!contextId) return false;                                   // missing context
-  // ---- Action validation ------------------------------------------------
+  if (!contextId) return false;
   if (!['read', 'write', 'delete'].includes(action.toLowerCase())) return false;
 
-  // ---- Get client ID (single DB round‑trip) ------------------------------
   const clientId = await getUserClientId(userId);
-  if (!clientId) {
-    console.error('[RBAC] User not found or inactive:', userId);
-    return false; // inactive / missing user
-  }
-  console.log('[RBAC] Checking permission for user:', userId, 'client:', clientId, 'context:', contextId);
-  
-  // ---- Verify the supplied context belongs to this client ----------------
+  if (!clientId) return false;
+
+  // Security: the requested context must belong to the user's client
   const contextValid = await verifyContextBelongsToClient(contextId, clientId);
-  if (!contextValid) {
-    console.error('[RBAC] Context does not belong to client:', contextId, clientId);
-    return false;
-  }
+  if (!contextValid) return false;
 
-  // ---- Try context‑specific permissions (L1 cache) ----------------------
-  let permissions = await resolvePermissionsFromCache(userId, contextId, clientId);
-  console.log('[RBAC] Permissions from cache:', permissions);
-
-  // ---- Fallback to client‑wide (global) context -------------------------
+  // Permission lookup is client-wide — a user's role may be assigned in any
+  // context within their client, regardless of which context they're querying
+  const cacheKey = `${userId}:${clientId}:all`;
+  let permissions = await getFromL1Cache(cacheKey);
   if (!permissions) {
-    console.log('[RBAC] No context-specific permissions, trying global context');
-    const globalCtx = await getClientContextByClientId(clientId);
-    if (globalCtx?.id) {
-      permissions = await resolvePermissionsFromCache(userId, globalCtx.id, clientId);
-      console.log('[RBAC] Global context permissions:', permissions);
-    }
+    permissions = await fetchClientPermissionsFromDB(userId, clientId);
+    if (permissions) await setToL1Cache(cacheKey, permissions, 60);
   }
 
-  if (!permissions) {
-    console.error('[RBAC] No permissions found for user:', userId);
-    return false;
-  }
-
-  const permString = `${resourceType}:${action}`;
-  const allowed = permissions.includes(permString);
-  console.log('[RBAC] Permission check:', permString, '→', allowed);
-  return allowed;
+  if (!permissions) return false;
+  return permissions.includes(`${resourceType}:${action}`);
 }
 
-/* -------------------------------------------------------------
-   HELPERS – CACHING
-------------------------------------------------------------- */
 async function resolvePermissionsFromCache(userId, contextId, clientId) {
-  // L1 cache lookup
-  try {
-    const cached = await getFromL1Cache(`${userId}:${contextId}`);
-    if (cached) return cached;
-  } catch (e) {
-    console.warn('L1 cache error (miss)', e);
-  }
+  const cached = await getFromL1Cache(`${userId}:${contextId}`);
+  if (cached) return cached;
 
-  // Cache miss – fetch from DB (now using L2 role cache)
   const perms = await fetchPermissionsFromDB(userId, contextId, clientId);
-  if (perms) {
-    await setToL1Cache(`${userId}:${contextId}`, perms, 60); // 60 s TTL
-  }
+  if (perms) await setToL1Cache(`${userId}:${contextId}`, perms, 60);
   return perms;
 }
 
-/* -------------------------------------------------------------
-   DB FETCH – USES L2 CACHE FOR ROLE → PERMISSION MAPPING
-------------------------------------------------------------- */
+async function fetchClientPermissionsFromDB(userId, clientId) {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT p.resource, p.action
+       FROM user_role_assignments ura
+       JOIN role_permissions rp ON rp.role_id = ura.role_id
+       JOIN permissions p ON p.id = rp.permission_id
+       WHERE ura.user_id = $1 AND ura.client_id = $2`,
+      [userId, clientId]
+    );
+    if (result.rowCount === 0) return null;
+    return result.rows.map(r => `${r.resource}:${r.action}`);
+  } catch (err) {
+    console.error('DB error fetching client permissions:', err);
+    return null;
+  }
+}
+
 async function fetchPermissionsFromDB(userId, contextId, clientId) {
-  // First, get distinct role IDs for the user/context
   let roleResult;
   try {
     roleResult = await pool.query(
       `SELECT DISTINCT ura.role_id
-         FROM user_role_assignments ura
-        WHERE ura.user_id = $1
-          AND ura.context_id = $2
-          AND ura.client_id = $3`,
+       FROM user_role_assignments ura
+       WHERE ura.user_id = $1 AND ura.context_id = $2 AND ura.client_id = $3`,
       [userId, contextId, clientId]
     );
-    console.log('[RBAC] Role query result:', roleResult.rows);
   } catch (err) {
     console.error('DB error fetching role IDs:', err);
     return null;
   }
 
-  if (roleResult.rowCount === 0) {
-    console.log('[RBAC] No roles found for user:', userId, 'in context:', contextId);
-    return null;
-  }
-  const roleIds = roleResult.rows.map(r => r.role_id);
-  console.log('[RBAC] Found role IDs:', roleIds);
+  if (roleResult.rowCount === 0) return null;
 
+  const roleIds = roleResult.rows.map(r => r.role_id);
   const permissions = [];
 
-  // Bulk fetch permissions for ALL roles in one query (eliminates N+1)
   try {
     const permsResult = await pool.query(
       `SELECT rp.role_id, p.resource, p.action
-         FROM role_permissions rp
-         JOIN permissions p ON p.id = rp.permission_id
-        WHERE rp.role_id = ANY($1::uuid[])`,
+       FROM role_permissions rp
+       JOIN permissions p ON p.id = rp.permission_id
+       WHERE rp.role_id = ANY($1::uuid[])`,
       [roleIds]
     );
-    console.log('[RBAC] Permission rows:', permsResult.rows);
 
-    // Build a map role_id → permission strings
     const roleMap = new Map();
     for (const row of permsResult.rows) {
       const permStr = `${row.resource}:${row.action}`;
@@ -121,13 +88,11 @@ async function fetchPermissionsFromDB(userId, contextId, clientId) {
       roleMap.get(row.role_id).push(permStr);
     }
 
-    // Populate L2 cache per role and aggregate
     for (const roleId of roleIds) {
       const rolePerms = roleMap.get(roleId) || [];
-      await setToL2Cache(roleId, rolePerms); // immediate availability for future lookups
+      await setToL2Cache(roleId, rolePerms);
       permissions.push(...rolePerms);
     }
-    console.log('[RBAC] Final permissions:', permissions);
   } catch (err) {
     console.error('DB error fetching role permissions:', err);
     return null;
@@ -136,9 +101,6 @@ async function fetchPermissionsFromDB(userId, contextId, clientId) {
   return permissions.length ? permissions : null;
 }
 
-/* -------------------------------------------------------------
-   CONTEXT HELPERS
-------------------------------------------------------------- */
 export async function getClientContextByClientId(clientId) {
   const result = await pool.query(
     `SELECT id FROM contexts WHERE client_id = $1 AND type = 'client' LIMIT 1`,
@@ -155,9 +117,6 @@ async function verifyContextBelongsToClient(contextId, clientId) {
   return result.rowCount > 0;
 }
 
-/* -------------------------------------------------------------
-   USER HELPERS
-------------------------------------------------------------- */
 async function getUserClientId(userId) {
   const result = await pool.query(
     `SELECT client_id FROM users WHERE id = $1 AND is_active = true`,
@@ -167,9 +126,34 @@ async function getUserClientId(userId) {
 }
 
 /* -------------------------------------------------------------
-   STUB CACHE LAYER – REPLACE WITH REAL IMPLEMENTATION
+   IN-MEMORY TTL CACHE (swap for Redis in production)
 ------------------------------------------------------------- */
-async function getFromL1Cache(key) { return null; }
-async function setToL1Cache(key, value, ttlSeconds) {}
-async function getFromL2Cache(roleId) { return null; }
-async function setToL2Cache(roleId, value) {}
+const _store = new Map();
+
+function _get(key) {
+  const e = _store.get(key);
+  if (!e) return null;
+  if (Date.now() > e.exp) { _store.delete(key); return null; }
+  return e.val;
+}
+
+function _set(key, val, ttlSeconds) {
+  _store.set(key, { val, exp: Date.now() + ttlSeconds * 1000 });
+}
+
+export function invalidateUserCache(userId) {
+  for (const key of _store.keys()) {
+    if (key.startsWith(`${userId}:`)) _store.delete(key);
+  }
+}
+
+export function invalidateClientCache(clientId) {
+  for (const key of _store.keys()) {
+    if (key.endsWith(`:${clientId}:all`)) _store.delete(key);
+  }
+}
+
+async function getFromL1Cache(key) { return _get(key); }
+async function setToL1Cache(key, value, ttlSeconds) { _set(key, value, ttlSeconds); }
+async function getFromL2Cache(roleId) { return _get(`role:${roleId}`); }
+async function setToL2Cache(roleId, value) { _set(`role:${roleId}`, value, 300); }

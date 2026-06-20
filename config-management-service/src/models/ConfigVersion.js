@@ -2,37 +2,19 @@ import mongoose from "mongoose";
 
 const ConfigVersionSchema = new mongoose.Schema(
   {
-    configKey: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    environment: {
-      type: String,
-      enum: ["dev", "stage", "prod"],
-      required: true,
-    },
-    version: {
-      type: Number,
-      required: true,
-    },
-    value: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true,
-    },
-    createdBy: {
-      type: String,
-      default: "system",
-    },
+    clientId: { type: String, required: true },
+    configKey: { type: String, required: true, trim: true },
+    environment: { type: String, required: true },
+    version: { type: Number, required: true },
+    value: { type: mongoose.Schema.Types.Mixed, required: true },
+    type: { type: String, enum: ['string', 'boolean', 'number', 'json'], default: 'string' },
+    createdBy: { type: String, default: "system" },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// For fast lookups and versioning
 ConfigVersionSchema.index(
-  { configKey: 1, environment: 1, version: -1 },
+  { clientId: 1, configKey: 1, environment: 1, version: -1 },
   { unique: true }
 );
 

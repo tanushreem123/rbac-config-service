@@ -15,6 +15,8 @@ CREATE TABLE users (
   is_email_verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   last_login TIMESTAMPTZ,
+  email_verification_token TEXT UNIQUE,
+  email_verification_expires_at TIMESTAMPTZ,
   UNIQUE (client_id, email)
 );
 CREATE INDEX ON users(client_id);
@@ -43,6 +45,7 @@ CREATE TABLE client_roles (
   client_id UUID NOT NULL REFERENCES clients(id),
   name TEXT NOT NULL,
   is_system BOOLEAN DEFAULT false,
+  is_default BOOLEAN NOT NULL DEFAULT false,
   parent_role_id UUID REFERENCES client_roles(id),
   UNIQUE (client_id, name)
 );
@@ -75,6 +78,17 @@ CREATE TABLE feature_flags (
   UNIQUE (client_id, flag_name, environment)
 );
 CREATE INDEX ON feature_flags(client_id, flag_name);
+
+CREATE TABLE refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX ON refresh_tokens(token);
+CREATE INDEX ON refresh_tokens(user_id);
 
 CREATE TABLE configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

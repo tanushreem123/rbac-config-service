@@ -11,8 +11,7 @@ export async function createOrUpdateConfig({ key, environment, value, createdBy,
      ON CONFLICT (client_id, key, environment)
      DO UPDATE SET
        value = EXCLUDED.value,
-       active_version = configs.active_version + 1,
-       updated_at = NOW()
+       active_version = configs.active_version + 1
      RETURNING *`,
     [key, value, environment, createdBy, clientId]
   );

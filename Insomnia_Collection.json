@@ -1,0 +1,487 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-05-13T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2024.1.0",
+  "resources": [
+    {
+      "_id": "wrk_config_management",
+      "_type": "workspace",
+      "name": "Config Management API",
+      "description": "Configuration Management Service API",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_prod",
+      "_type": "environment",
+      "parentId": "wrk_config_management",
+      "name": "Production",
+      "data": {
+        "base_url": "http://localhost:3001",
+        "admin_token": "super-secret-admin-token",
+        "jwt_token": "",
+        "client_id": "c946e5dc-efff-405f-a3fb-e68f0ce7ab39",
+        "context_id": "5b1e3f34-b1de-41cc-ba5e-abf54c093745",
+        "resource_type": "config",
+        "verification_token": "",
+        "user_id": "",
+        "refresh_token": "",
+        "role_id": "",
+        "permission_id": ""
+      }
+    },
+    {
+      "_id": "env_dev",
+      "_type": "environment",
+      "parentId": "wrk_config_management",
+      "name": "Development",
+      "data": {
+        "base_url": "http://localhost:3001",
+        "admin_token": "super-secret-admin-token",
+        "jwt_token": "",
+        "client_id": "c946e5dc-efff-405f-a3fb-e68f0ce7ab39",
+        "context_id": "5b1e3f34-b1de-41cc-ba5e-abf54c093745",
+        "resource_type": "config",
+        "verification_token": "",
+        "user_id": "",
+        "refresh_token": "",
+        "role_id": "",
+        "permission_id": ""
+      }
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_config_management",
+      "name": "Authentication"
+    },
+    {
+      "_id": "req_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Login (Get JWT)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/login",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"your-user-email\",\n  \"password\": \"your-user-password\"\n}"
+      },
+      "description": "Login to get JWT token. Use the returned token for Authorization in other requests."
+    },
+    {
+      "_id": "req_register",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Register User",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass1\",\n  \"name\": \"New User\",\n  \"client_id\": \"{{ client_id }}\"\n}"
+      },
+      "description": "Register a new user. client_id must exist in the clients table. Password requires min 8 chars, uppercase, lowercase, and a number. Returns user object + JWT on success (201)."
+    },
+    {
+      "_id": "req_register_bad_client",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Register — Invalid client_id (expect 400)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass1\",\n  \"name\": \"New User\",\n  \"client_id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+      },
+      "description": "Should return 400 Invalid client_id."
+    },
+    {
+      "_id": "req_register_weak_password",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Register — Weak password (expect 400)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"weakpass\",\n  \"name\": \"New User\",\n  \"client_id\": \"{{ client_id }}\"\n}"
+      },
+      "description": "Should return 400 — password has no uppercase or number."
+    },
+    {
+      "_id": "req_register_duplicate",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Register — Duplicate user (expect 409)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass1\",\n  \"name\": \"New User\",\n  \"client_id\": \"{{ client_id }}\"\n}"
+      },
+      "description": "Run after a successful register with the same email+client_id. Should return 409 User already exists."
+    },
+    {
+      "_id": "req_refresh_token",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Refresh Token",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/refresh",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"refresh_token\": \"{{ refresh_token }}\"\n}"
+      },
+      "description": "Exchange a valid refresh token for a new access_token + rotated refresh_token. Returns 401 if invalid/expired/revoked."
+    },
+    {
+      "_id": "req_logout",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Logout",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/logout",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"refresh_token\": \"{{ refresh_token }}\"\n}"
+      },
+      "description": "Revokes the refresh token. Always returns 200 — even if token was already revoked."
+    },
+    {
+      "_id": "req_verify_email",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Verify Email",
+      "method": "GET",
+      "url": "{{ base_url }}/auth/verify?token={{ verification_token }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "description": "Paste the token from the verification email into the verification_token env variable. Returns 200 on success, 400 if token is invalid/expired, 400 if already verified."
+    },
+    {
+      "_id": "req_verify_email_invalid",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Verify Email — Invalid token (expect 400)",
+      "method": "GET",
+      "url": "{{ base_url }}/auth/verify?token=thisisnotavalidtoken",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "description": "Should return 400 Invalid or already used verification token."
+    },
+    {
+      "_id": "req_verify_email_reuse",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Verify Email — Reuse token (expect 400)",
+      "method": "GET",
+      "url": "{{ base_url }}/auth/verify?token={{ verification_token }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "description": "Run after a successful verify with the same token. Should return 400 — token is cleared after first use."
+    },
+    {
+      "_id": "fld_public",
+      "_type": "request_group",
+      "parentId": "wrk_config_management",
+      "name": "Public Endpoints (No Auth Required)"
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Health Check",
+      "method": "GET",
+      "url": "{{ base_url }}/health",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "_id": "req_get_configs",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Get All Active Configs",
+      "method": "GET",
+      "url": "{{ base_url }}/configs?env=production",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ jwt_token }}" },
+        { "name": "x-client-id", "value": "{{ client_id }}" },
+        { "name": "x-context-id", "value": "{{ context_id }}" }
+      ],
+      "description": "Requires JWT + x-context-id header. Returns all active configs for the given environment scoped to the client."
+    },
+    {
+      "_id": "req_get_versions",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Get Config Versions",
+      "method": "GET",
+      "url": "{{ base_url }}/configs/database_url/versions?env=production",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ jwt_token }}" },
+        { "name": "x-client-id", "value": "{{ client_id }}" },
+        { "name": "x-context-id", "value": "{{ context_id }}" }
+      ],
+      "description": "Requires JWT + x-context-id header. Returns version history for a specific config key."
+    },
+    {
+      "_id": "fld_admin",
+      "_type": "request_group",
+      "parentId": "wrk_config_management",
+      "name": "Admin Endpoints (Auth Required)"
+    },
+    {
+      "_id": "fld_roles",
+      "_type": "request_group",
+      "parentId": "wrk_config_management",
+      "name": "Roles (Admin Only)"
+    },
+    {
+      "_id": "req_create_role",
+      "_type": "request",
+      "parentId": "fld_roles",
+      "name": "Create Role",
+      "method": "POST",
+      "url": "{{ base_url }}/roles",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"client_id\": \"{{ client_id }}\",\n  \"name\": \"member\",\n  \"is_default\": true\n}"
+      },
+      "description": "Creates a role for a client. Set is_default: true to auto-assign this role to new registrations. Only one default role per client is allowed."
+    },
+    {
+      "_id": "req_list_roles",
+      "_type": "request",
+      "parentId": "fld_roles",
+      "name": "List Roles",
+      "method": "GET",
+      "url": "{{ base_url }}/roles?client_id={{ client_id }}",
+      "headers": [
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "description": "Lists all roles for a client. Default role is listed first."
+    },
+    {
+      "_id": "req_assign_role",
+      "_type": "request",
+      "parentId": "fld_roles",
+      "name": "Assign Role to User",
+      "method": "POST",
+      "url": "{{ base_url }}/roles/assign",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"user_id\": \"{{ user_id }}\",\n  \"client_id\": \"{{ client_id }}\",\n  \"context_id\": \"{{ context_id }}\",\n  \"role_id\": \"{{ role_id }}\"\n}"
+      },
+      "description": "Manually assign a role to a user in a specific context."
+    },
+    {
+      "_id": "fld_permissions",
+      "_type": "request_group",
+      "parentId": "wrk_config_management",
+      "name": "Permissions (Admin Only)"
+    },
+    {
+      "_id": "req_list_permissions",
+      "_type": "request",
+      "parentId": "fld_permissions",
+      "name": "List All Permissions",
+      "method": "GET",
+      "url": "{{ base_url }}/permissions",
+      "headers": [
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "description": "Lists all available permissions (service:resource:action). Use the returned IDs when assigning permissions to roles."
+    },
+    {
+      "_id": "req_create_permission",
+      "_type": "request",
+      "parentId": "fld_permissions",
+      "name": "Create Permission",
+      "method": "POST",
+      "url": "{{ base_url }}/permissions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"service\": \"config\",\n  \"resource\": \"feature_flag\",\n  \"action\": \"read\",\n  \"description\": \"Read feature flags\"\n}"
+      },
+      "description": "Creates a new permission. action must be one of: read, write, delete. Returns 409 if it already exists."
+    },
+    {
+      "_id": "req_list_role_permissions",
+      "_type": "request",
+      "parentId": "fld_permissions",
+      "name": "List Permissions on Role",
+      "method": "GET",
+      "url": "{{ base_url }}/roles/{{ role_id }}/permissions",
+      "headers": [
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "description": "Lists all permissions assigned to a specific role."
+    },
+    {
+      "_id": "req_add_role_permission",
+      "_type": "request",
+      "parentId": "fld_permissions",
+      "name": "Add Permission to Role",
+      "method": "POST",
+      "url": "{{ base_url }}/roles/{{ role_id }}/permissions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"permission_id\": \"{{ permission_id }}\"\n}"
+      },
+      "description": "Assigns a permission to a role. Idempotent — no error if already assigned."
+    },
+    {
+      "_id": "req_remove_role_permission",
+      "_type": "request",
+      "parentId": "fld_permissions",
+      "name": "Remove Permission from Role",
+      "method": "DELETE",
+      "url": "{{ base_url }}/roles/{{ role_id }}/permissions/{{ permission_id }}",
+      "headers": [
+        { "name": "x-admin-token", "value": "{{ admin_token }}" }
+      ],
+      "description": "Removes a permission from a role. Returns 404 if the permission wasn't on the role."
+    },
+    {
+      "_id": "req_create_config",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Create or Update Config",
+      "method": "POST",
+      "url": "{{ base_url }}/configs",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ jwt_token }}" },
+        { "name": "x-client-id", "value": "{{ client_id }}" },
+        { "name": "x-context-id", "value": "{{ context_id }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\"key\":\"database_url\",\"environment\":\"production\",\"value\":\"postgresql://user:password@db.example.com:5432/mydb\",\"createdBy\":\"admin\"}"
+      }
+    },
+    {
+      "_id": "req_list_users",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "List Users",
+      "method": "GET",
+      "url": "{{ base_url }}/auth/users",
+      "headers": [
+        {
+          "name": "x-admin-token",
+          "value": "{{ admin_token }}"
+        }
+      ],
+      "description": "Returns all users with id, client_id, email, name, is_active, is_email_verified, created_at, last_login. Requires x-admin-token."
+    },
+    {
+      "_id": "req_delete_user",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Delete User",
+      "method": "DELETE",
+      "url": "{{ base_url }}/auth/users/{{ user_id }}",
+      "headers": [
+        {
+          "name": "x-admin-token",
+          "value": "{{ admin_token }}"
+        }
+      ],
+      "description": "Deletes a user by ID. Requires x-admin-token header. Returns deleted user's id, email, name on success (200), 404 if not found."
+    },
+    {
+      "_id": "req_rollback_config",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Rollback Config",
+      "method": "POST",
+      "url": "{{ base_url }}/configs/rollback",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ jwt_token }}" },
+        { "name": "x-client-id", "value": "{{ client_id }}" },
+        { "name": "x-context-id", "value": "{{ context_id }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\"key\":\"database_url\",\"environment\":\"production\",\"targetVersion\":1}"
+      }
+    }
+  ]
+}
