@@ -138,6 +138,42 @@ export default function OnboardingPage() {
     return p.service?.toLowerCase().includes(q) || p.resource?.toLowerCase().includes(q) || p.action?.toLowerCase().includes(q);
   });
 
+  // True when every currently-visible permission is already assigned to the selected role.
+  const allFilteredSelected =
+    !!selectedRoleId &&
+    filteredPerms.length > 0 &&
+    filteredPerms.every((p) => (rolePerms[selectedRoleId] || new Set()).has(p.id));
+
+  // Bulk add/remove every visible (filtered) permission for the selected role.
+  const toggleAllPerms = async () => {
+    if (!selectedRoleId || permsSaving || filteredPerms.length === 0) return;
+    setPermsSaving(true);
+    setError('');
+    try {
+      const current = new Set(rolePerms[selectedRoleId] || new Set());
+      if (allFilteredSelected) {
+        for (const p of filteredPerms) {
+          if (current.has(p.id)) {
+            await removeClientRolePermission(clientId, selectedRoleId, p.id);
+            current.delete(p.id);
+          }
+        }
+      } else {
+        for (const p of filteredPerms) {
+          if (!current.has(p.id)) {
+            await addClientRolePermission(clientId, selectedRoleId, p.id);
+            current.add(p.id);
+          }
+        }
+      }
+      setRolePerms((prev) => ({ ...prev, [selectedRoleId]: current }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPermsSaving(false);
+    }
+  };
+
   // ── Step 3: create user ───────────────────────────────────────────────────
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -309,6 +345,17 @@ export default function OnboardingPage() {
                         placeholder="Filter permissions..."
                         style={{ ...inp, marginBottom: '12px', width: '100%' }}
                       />
+                      {allPermissions.length > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '12px', color: '#888' }}>
+                            {(rolePerms[selectedRoleId] || new Set()).size} selected · {filteredPerms.length} shown
+                          </span>
+                          <button type="button" onClick={toggleAllPerms} disabled={permsSaving || filteredPerms.length === 0}
+                            style={{ padding: '6px 12px', background: 'none', border: '1px solid #007bff', color: '#007bff', borderRadius: '4px', cursor: permsSaving || filteredPerms.length === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                            {allFilteredSelected ? 'Deselect all' : 'Select all'}{permFilter ? ' (filtered)' : ''}
+                          </button>
+                        </div>
+                      )}
                       {allPermissions.length === 0 ? (
                         <p style={{ color: '#999', fontSize: '14px' }}>No permissions defined yet. Create them in the Permissions page first.</p>
                       ) : (

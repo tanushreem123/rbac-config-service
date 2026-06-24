@@ -30,6 +30,13 @@ export default function LoginPage() {
     setResendStatus('');
     setLoading(true);
     try {
+      // Domain is authoritative: you can only log in on a domain that maps to a client.
+      const detected = await resolveClientFromDomain({ force: true });
+      if (!detected) {
+        setError(`No client is configured for this domain (${window.location.hostname}). Log in on a registered client domain.`);
+        setLoading(false);
+        return;
+      }
       await login(email, password);
       router.push('/configs');
     } catch (err) {
@@ -63,7 +70,7 @@ export default function LoginPage() {
 
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontWeight: '800', fontSize: '18px', color: '#1a1a2e' }}>ConfigHub</span>
+            <span style={{ fontWeight: '800', fontSize: '18px', color: '#1a1a2e' }}>Authzy</span>
             <span style={{ fontSize: '10px', background: '#eef', color: '#6366f1', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>BETA</span>
           </div>
           <p style={{ margin: 0, color: '#888', fontSize: '14px' }}>Sign in to your account</p>

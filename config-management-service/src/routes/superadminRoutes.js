@@ -1,9 +1,11 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { pool } from '../db.js';
 import { platformAdminAuth } from '../middleware/platformAdminAuth.js';
+import { sendVerificationEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -298,10 +300,13 @@ router.post('/clients/:id/users', platformAdminAuth, async (req, res) => {
     if (existing.rowCount > 0) return res.status(409).json({ error: 'User already exists for this client' });
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const result = await pool.query(
-      `INSERT INTO users (client_id, email, password, name, is_active, is_email_verified)
-       VALUES ($1, $2, $3, $4, true, true) RETURNING id, email, name`,
-      [client_id, email, passwordHash, name]
+      `INSERT INTO users (client_id, email, password, name, is_active, is_email_verified,
+                          email_verification_token, email_verification_expires_at)
+       VALUES ($1, $2, $3, $4, true, false, $5, $6) RETURNING id, email, name`,
+      [client_id, email, passwordHash, name, verificationToken, verificationExpiry]
     );
     const user = result.rows[0];
 
@@ -322,7 +327,17 @@ router.post('/clients/:id/users', platformAdminAuth, async (req, res) => {
       );
     }
 
-    res.status(201).json({ user });
+    // Send the verification email. Best-effort: the user is created either way;
+    // if SMTP fails the admin can trigger a resend. (Login is blocked until verified.)
+    let emailSent = true;
+    try {
+      await sendVerificationEmail(user.email, user.name, verificationToken);
+    } catch (mailErr) {
+      emailSent = false;
+      console.error('Verification email failed (user still created, can resend):', mailErr.message);
+    }
+
+    res.status(201).json({ user, email_verification_required: true, email_sent: emailSent });
   } catch (err) {
     console.error('SA create user error:', err);
     res.status(500).json({ error: 'Internal server error' });

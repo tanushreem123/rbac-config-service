@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Config Management",
-  description: "RBAC Config Management UI",
+  title: "Authzy",
+  description: "Authzy — RBAC config management",
 };
 
 export default function RootLayout({ children }) {

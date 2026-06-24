@@ -43,8 +43,8 @@ async function createRefreshToken(userId) {
 }
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 12,
+  windowMs: 150 * 60 * 1000,
+  max: 8000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' }
@@ -56,16 +56,35 @@ router.post('/login', authLimiter, async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
   try {
-    const result = await pool.query(
-      'SELECT id, client_id, password, name, is_active, is_email_verified FROM users WHERE email = $1',
-      [email]
+    // Email is unique only per client, so the same email can exist across tenants.
+    // When the request carries a client context (the domain-detected tenant), the user
+    // MUST belong to that client — the domain is authoritative, so you can't log into a
+    // tenant you don't belong to just because your credentials are valid elsewhere.
+    // When no client context is given (e.g. raw API calls), fall back to any tenant.
+    const requestedClientId = req.headers['x-client-id'] || req.body?.client_id || null;
+    const { rows: candidates } = await pool.query(
+      `SELECT id, client_id, password, name, is_active, is_email_verified
+       FROM users
+       WHERE email = $1 AND ($2::uuid IS NULL OR client_id = $2::uuid)
+       ORDER BY is_email_verified DESC, is_active DESC, created_at DESC`,
+      [email, requestedClientId]
     );
-    const user = result.rows[0];
-    if (!user || !user.is_active) return res.status(401).json({ error: 'Invalid credentials' });
-    if (!user.is_email_verified) return res.status(403).json({ error: 'Please verify your email before logging in' });
+    if (candidates.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    // Pick the account whose password matches; prefer the hinted client (ordering above).
+    let user = null;
+    let matchedButUnverified = false;
+    for (const candidate of candidates) {
+      if (!candidate.is_active) continue;
+      if (await bcrypt.compare(password, candidate.password)) {
+        if (candidate.is_email_verified) { user = candidate; break; }
+        matchedButUnverified = true; // right password, but this account isn't verified
+      }
+    }
+    if (!user) {
+      if (matchedButUnverified) return res.status(403).json({ error: 'Please verify your email before logging in' });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
 

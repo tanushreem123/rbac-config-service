@@ -1,22 +1,28 @@
 import nodemailer from 'nodemailer';
 
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+
 const transporter = nodemailer.createTransport({
-  host: process.env.MAILTRAP_HOST,
-  port: Number(process.env.MAILTRAP_PORT),
+  host: process.env.SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465, // 465 = implicit TLS; 587 = STARTTLS
   auth: {
-    user: process.env.MAILTRAP_USER,
-    pass: process.env.MAILTRAP_PASS
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
   }
 });
 
+// Must match a sender verified with your provider (with Brevo single-sender
+// verification this is your own email), otherwise the provider rejects the message.
+const FROM = process.env.SMTP_FROM || '"Authzy" <no-reply@example.com>';
 const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 export async function sendVerificationEmail(email, name, token) {
   const verifyUrl = `${FRONTEND}/verify?token=${token}`;
   const info = await transporter.sendMail({
-    from: '"ConfigHub" <noreply@confighub.dev>',
+    from: FROM,
     to: email,
-    subject: 'Verify your email — ConfigHub',
+    subject: 'Verify your email — Authzy',
     html: `
 <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff">
   <h2 style="margin:0 0 8px;color:#1a1a2e;font-size:20px">Verify your email</h2>

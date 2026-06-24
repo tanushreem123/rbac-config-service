@@ -7,7 +7,7 @@ import {
   listPermissions, listUsers,
 } from '../../lib/RbacService';
 import { getClientId, getContextId, isLoggedIn } from '../../lib/auth';
-import { friendlyPermissionError } from '../../lib/permissions';
+import { friendlyPermissionError, permissionLabel } from '../../lib/permissions';
 
 export default function RolesPage() {
   const [roles, setRoles] = useState([]);
@@ -261,7 +261,7 @@ export default function RolesPage() {
                     <select value={addPermId} onChange={(e) => setAddPermId(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
                       <option value="">Add a permission...</option>
                       {unassignedPerms.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id}>{permissionLabel(p)}</option>
                       ))}
                     </select>
                     <button onClick={handleAddPerm} disabled={!addPermId} style={{ padding: '8px 18px', background: !addPermId ? '#aaa' : '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: !addPermId ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontWeight: '600' }}>
@@ -287,7 +287,7 @@ export default function RolesPage() {
                     <tbody>
                       {rolePerms.map((p) => (
                         <tr key={p.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                          <td style={{ ...td, fontFamily: 'monospace' }}>{p.name}</td>
+                          <td style={{ ...td, fontFamily: 'monospace' }}>{permissionLabel(p)}</td>
                           <td style={td}>{p.resource}</td>
                           <td style={td}>
                             <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '12px', background: p.action === 'delete' ? '#ffebee' : p.action === 'write' ? '#fff3e0' : '#e8f5e9', color: p.action === 'delete' ? '#c62828' : p.action === 'write' ? '#e65100' : '#2e7d32' }}>

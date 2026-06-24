@@ -37,7 +37,7 @@ export default function Navbar() {
       {/* Left: logo + links */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontWeight: '800', fontSize: '15px', letterSpacing: '0.5px', color: 'white' }}>ConfigHub</span>
+          <span style={{ fontWeight: '800', fontSize: '15px', letterSpacing: '0.5px', color: 'white' }}>Authzy</span>
           <span style={{ fontSize: '10px', background: '#3a3a6e', color: '#9ca3af', padding: '2px 6px', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.5px' }}>BETA</span>
         </div>
         <div style={{ display: 'flex', gap: '2px' }}>

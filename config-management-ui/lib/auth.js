@@ -1,3 +1,5 @@
+import { clearDetectedClient, getDetectedClientId } from './clientDetection';
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // Tokens are in httpOnly cookies — JS cannot read them.
@@ -33,13 +35,20 @@ function saveSession(user) {
 
 function clearSession() {
   localStorage.removeItem('session_user');
+  clearDetectedClient();  // drop the cached tenant so it re-resolves from the domain next time
 }
 
 export async function login(email, password) {
+  // Use the DOMAIN-detected tenant (not any lingering session) so the backend pins
+  // login to the client that owns this domain.
+  const clientId = getDetectedClientId();
   const res = await fetch(`${BASE_URL}/auth/login`, {
     method: 'POST',
     credentials: 'include',        // sends & receives cookies
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(clientId && { 'x-client-id': clientId }),  // scope login to the detected tenant
+    },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();

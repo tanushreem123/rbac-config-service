@@ -18,6 +18,17 @@ const PERMISSION_LABELS = {
 };
 
 /**
+ * Build a human-readable label for a permission object
+ * ({ service, resource, action, description }). Falls back to "resource:action"
+ * when there's no friendly label. The backend has no `name` field — use this instead.
+ */
+export function permissionLabel(p) {
+  if (!p) return '';
+  const key = `${p.resource}:${p.action}`;
+  return PERMISSION_LABELS[key] || key;
+}
+
+/**
  * Fetch the current user's effective permissions.
  * Returns a Set of strings like "users:delete", "roles:read", etc.
  */
