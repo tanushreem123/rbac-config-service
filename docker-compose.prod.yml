@@ -1,0 +1,109 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Production compose — single EC2 instance.
+#
+# Differences from docker-compose.yml (dev):
+#   • no source bind-mounts (immutable images, no hot-reload)
+#   • NODE_ENV=production (enables Secure / SameSite='strict' cookies)
+#   • Postgres + the app + the frontend have NO published ports — only Caddy is
+#     public. Everything else is reachable solely on the internal docker network.
+#   • Caddy terminates TLS (auto Let's Encrypt) and path-routes one domain:
+#         https://DOMAIN/api/*  → backend   (the /api prefix is stripped)
+#         https://DOMAIN/*      → frontend
+#     Same-origin → no CORS, and sameSite='strict' auth cookies work.
+#   • Postgres init runs schema + ALL migrations + RLS, in order (dev compose
+#     skipped the migrations).
+#
+# On the EC2 box:
+#   cp .env.prod.example .env.prod && chmod 600 .env.prod   # fill in real values
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rbac_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-rbac_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Init scripts run once, on an empty data dir, in alphabetical order.
+      - ./config-management-service/db/schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql:ro
+      - ./config-management-service/db/migrations/001_add_email_verification.sql:/docker-entrypoint-initdb.d/02-migration-001.sql:ro
+      - ./config-management-service/db/migrations/002_add_refresh_tokens.sql:/docker-entrypoint-initdb.d/03-migration-002.sql:ro
+      - ./config-management-service/db/migrations/003_add_role_default.sql:/docker-entrypoint-initdb.d/04-migration-003.sql:ro
+      - ./config-management-service/db/migrations/004_platform_admin_and_domains.sql:/docker-entrypoint-initdb.d/05-migration-004.sql:ro
+      - ./config-management-service/db/migrations/005_add_password_hash.sql:/docker-entrypoint-initdb.d/06-migration-005.sql:ro
+      - ./config-management-service/db/enforce_tenancy.sql:/docker-entrypoint-initdb.d/07-enforce-tenancy.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-rbac_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [config-network]
+
+  api:
+    build:
+      context: ./config-management-service
+      dockerfile: Dockerfile
+    container_name: config_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-rbac_db}
+      MONGO_URI: ${MONGO_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: https://${DOMAIN}
+      APP_URL: https://${DOMAIN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [config-network]
+
+  frontend:
+    build:
+      context: ./config-management-ui
+      dockerfile: Dockerfile.prod
+      args:
+        # NEXT_PUBLIC_* are inlined into the bundle at BUILD time — must be args.
+        NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN}/api
+        NEXT_PUBLIC_CONTEXT_ID: ${NEXT_PUBLIC_CONTEXT_ID}
+        NEXT_PUBLIC_CLIENT_ID: ${NEXT_PUBLIC_CLIENT_ID}
+    container_name: config_ui
+    restart: unless-stopped
+    depends_on: [api]
+    networks: [config-network]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: config_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api, frontend]
+    networks: [config-network]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  config-network:
+    driver: bridge

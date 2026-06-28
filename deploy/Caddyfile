@@ -1,0 +1,24 @@
+# Caddy reverse proxy + automatic HTTPS (Let's Encrypt).
+# DOMAIN and ACME_EMAIL are injected from .env.prod via docker-compose.prod.yml.
+#
+# Routing model: ONE domain, path-based.
+#   https://DOMAIN/api/*  → backend on :3001  (the /api prefix is stripped, so
+#                                              Express still sees /configs, /auth, …)
+#   https://DOMAIN/*      → Next.js frontend on :3000
+# Single origin → no CORS, and the backend's sameSite='strict' cookies work.
+
+{$DOMAIN} {
+	encode gzip
+
+	# `handle_path` matches AND strips the /api prefix before proxying.
+	handle_path /api/* {
+		reverse_proxy api:3001
+	}
+
+	# Everything else goes to the frontend.
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	tls {$ACME_EMAIL}
+}

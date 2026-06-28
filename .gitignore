@@ -14,3 +14,4 @@ QUICK_REFERENCE.md
 .env.*
 !.env.example
 .env.example
+!.env.prod.example
