@@ -3,13 +3,17 @@
 Production deploy of the RBAC + config service onto **one EC2 instance** running
 everything via Docker Compose, with **MongoDB Atlas** for config data and a
 **Postgres container** for RBAC data. Caddy terminates TLS and routes a single
-domain. Target cost: **~$18/mo**, comfortably inside the $200 / 6-month credits.
+domain.
+
+> **Live deployment:** https://authzy.duckdns.org — EC2 `t3.micro`, Amazon Linux
+> 2023, Elastic IP, DuckDNS + Let's Encrypt. Runs at **~$8–10/mo**, well inside
+> the AWS Free-Tier credits.
 
 ```
                  Internet
                     │  :443 / :80
             ┌───────▼─────────────────────────┐
-            │ EC2 t3.small  (Elastic IP = EIP) │
+            │ EC2 t3.micro  (Elastic IP = EIP) │
             │  ┌────────────────────────────┐  │
             │  │ Caddy (TLS, reverse proxy) │  │
             │  │   /api/* → api:3001        │  │
@@ -24,6 +28,12 @@ domain. Target cost: **~$18/mo**, comfortably inside the $200 / 6-month credits.
               MongoDB Atlas  ← whitelist the EIP only
 ```
 
+> **OS note:** this guide targets **Amazon Linux 2023** (the default AWS AMI, SSH
+> user `ec2-user`). `deploy/setup-ec2.sh` installs Docker, the Compose plugin,
+> and buildx via `dnf` and adds swap. On a 1 GB `t3.micro` the swap is **required**
+> — the Next.js build OOM-kills without it. Bump to `t3.small` (2 GB) if you'd
+> rather not rely on swap.
+
 Files this uses (all in the repo):
 `docker-compose.prod.yml`, `deploy/Caddyfile`, `config-management-ui/Dockerfile.prod`,
 `.env.prod.example`, `deploy/setup-ec2.sh`, `deploy/backup-postgres.sh`.
@@ -33,10 +43,11 @@ Files this uses (all in the repo):
 ## Phase 1 — AWS provisioning (one-time, console)
 
 1. **Launch EC2**
-   - AMI: **Ubuntu 22.04 LTS**
-   - Type: **t3.small** (2 GB RAM — `t3.micro`/1 GB will OOM on the Next.js build)
+   - AMI: **Amazon Linux 2023** (default; SSH user is `ec2-user`)
+   - Type: **t3.micro** (1 GB — works with the swap the setup script adds) or
+     **t3.small** (2 GB — safer, no swap reliance)
    - Storage: **20 GB gp3**
-   - Key pair: create/download one for SSH.
+   - Key pair: create/download one for SSH (`.pem`).
 
 2. **Allocate an Elastic IP** → associate it with the instance. This is your
    permanent address — call it `<EIP>`. (It's free *while attached to a running
@@ -65,16 +76,21 @@ Files this uses (all in the repo):
 ## Phase 2 — Host setup (on the instance)
 
 ```bash
-ssh -i your-key.pem ubuntu@<EIP>
+ssh -i your-key.pem ec2-user@<EIP>
 
-git clone https://github.com/<you>/rbac-config-service.git
+git clone https://github.com/tanushreem123/rbac-config-service.git
 cd rbac-config-service
 
-bash deploy/setup-ec2.sh     # installs Docker + compose + awscli, adds 2 GB swap
+bash deploy/setup-ec2.sh     # dnf: docker + compose plugin + buildx; adds 2 GB swap
 exit                          # log out/in so the docker group applies
 ```
 
-Re-SSH after the re-login.
+Re-SSH after the re-login, then verify:
+```bash
+docker ps                    # no "permission denied" = docker group applied
+docker compose version       # Compose plugin present
+free -h                      # a 2 GB Swap line
+```
 
 ---
 
@@ -149,7 +165,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```bash
 crontab -e
 # nightly at 03:00
-0 3 * * * /home/ubuntu/rbac-config-service/deploy/backup-postgres.sh >> /home/ubuntu/pg-backup.log 2>&1
+0 3 * * * /home/ec2-user/rbac-config-service/deploy/backup-postgres.sh >> /home/ec2-user/pg-backup.log 2>&1
 ```
 Set `BACKUP_S3_BUCKET` in `.env.prod` to also push dumps to S3.
 
