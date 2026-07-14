@@ -13,6 +13,11 @@ import apiKeyRoutes from "./routes/apiKeyRoutes.js";
 
 const app = express();
 
+// Behind a reverse proxy (Caddy) in production: trust the first proxy hop so
+// req.ip / X-Forwarded-For resolve to the real client, and express-rate-limit
+// keys on the actual user instead of Caddy's single IP.
+app.set('trust proxy', 1);
+
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
